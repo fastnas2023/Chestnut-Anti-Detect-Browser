@@ -9,6 +9,9 @@ export interface Profile {
 
 let dbInstance: Database.Database;
 
+// Track running instances in memory
+const runningProfiles = new Map<number, { pid: number, port: number }>();
+
 export function initDB(db?: Database.Database) {
   dbInstance = db || new Database('profiles.db');
   dbInstance.exec(`
@@ -30,4 +33,17 @@ export function createProfile(profile: Profile): number {
 export function getProfiles(): Profile[] {
   const stmt = dbInstance.prepare('SELECT * FROM profiles');
   return stmt.all() as Profile[];
+}
+
+// New volatile methods
+export function setRunningProfile(id: number, pid: number, port: number) {
+  runningProfiles.set(id, { pid, port });
+}
+
+export function getRunningProfile(id: number) {
+  return runningProfiles.get(id);
+}
+
+export function removeRunningProfile(id: number) {
+  runningProfiles.delete(id);
 }
