@@ -2,8 +2,23 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs';
+import net from 'net';
 import os from 'os';
-import { initDB, getProfiles, createProfile, Profile } from './db';
+import { initDB, getProfiles, createProfile, Profile, setRunningProfile, removeRunningProfile } from './db';
+
+// Helper to find an open port
+function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'string' ? 0 : address?.port || 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -47,7 +62,7 @@ ipcMain.handle('create-profile', (event, profile: Profile) => {
   return createProfile(profile);
 });
 
-ipcMain.handle('launch-profile', (event, id: number) => {
+ipcMain.handle('launch-profile', async (event, id: number) => {
   const profiles = getProfiles();
   const profile = profiles.find(p => p.id === id);
   if (!profile) return false;
@@ -68,12 +83,14 @@ ipcMain.handle('launch-profile', (event, id: number) => {
     execPath = '/usr/bin/google-chrome'; // Linux
   }
 
+  const debuggingPort = await getAvailablePort();
+
   const args = [
     `--user-data-dir=${userDataDir}`,
     '--no-first-run',
     '--no-default-browser-check',
-    // Custom CLI switches for our Phase 2 C++ Patches:
     `--canvas-noise-seed=${profile.canvasSeed}`,
+    `--remote-debugging-port=${debuggingPort}`,
   ];
 
   if (profile.proxy) {
@@ -86,7 +103,12 @@ ipcMain.handle('launch-profile', (event, id: number) => {
       stdio: 'ignore'
     });
     child.unref();
-    console.log(`Launched profile ${id} with PID ${child.pid}`);
+    
+    // Save to tracking map
+    if (child.pid) {
+      setRunningProfile(id, child.pid, debuggingPort);
+      console.log(`Launched profile ${id} on port ${debuggingPort} with PID ${child.pid}`);
+    }
     return true;
   } catch (error) {
     console.error('Failed to launch browser:', error);
