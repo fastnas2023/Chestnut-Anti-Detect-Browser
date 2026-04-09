@@ -1,0 +1,28 @@
+--- third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -50,6 +50,7 @@
+ #include "base/numerics/checked_math.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/task/single_thread_task_runner.h"
++#include "base/command_line.h"
+ #include "build/build_config.h"
+ #include "gpu/command_buffer/client/gles2_interface.h"
+ #include "gpu/config/gpu_feature_info.h"
+@@ -3520,6 +3521,17 @@
+ 
+ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+                                                     GLenum pname) {
++  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  
++  // Spoof UNMASKED_VENDOR_WEBGL (0x9245)
++  if (pname == 0x9245 && command_line->HasSwitch("webgl-vendor")) {
++    return WebGLAny(script_state, String::FromUTF8(command_line->GetSwitchValueASCII("webgl-vendor")));
++  }
++  
++  // Spoof UNMASKED_RENDERER_WEBGL (0x9246)
++  if (pname == 0x9246 && command_line->HasSwitch("webgl-renderer")) {
++    return WebGLAny(script_state, String::FromUTF8(command_line->GetSwitchValueASCII("webgl-renderer")));
++  }
++
+   if (isContextLost())
+     return ScriptValue::CreateNull(script_state->GetIsolate());
