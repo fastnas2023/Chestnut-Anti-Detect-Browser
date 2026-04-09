@@ -5,6 +5,7 @@ import fs from 'fs';
 import net from 'net';
 import os from 'os';
 import { initDB, getProfiles, createProfile, Profile, setRunningProfile, removeRunningProfile } from './db';
+import { runAgentTask } from './agent';
 
 // Helper to find an open port
 function getAvailablePort(): Promise<number> {
@@ -113,5 +114,14 @@ ipcMain.handle('launch-profile', async (event, id: number) => {
   } catch (error) {
     console.error('Failed to launch browser:', error);
     return false;
+  }
+});
+
+ipcMain.handle('run-agent', async (event, id: number, task: string) => {
+  try {
+    const result = await runAgentTask(id, task);
+    return { success: true, message: result };
+  } catch (error: any) {
+    return { success: false, message: error.message };
   }
 });
