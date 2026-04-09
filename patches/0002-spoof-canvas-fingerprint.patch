@@ -1,0 +1,50 @@
+--- third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -40,6 +40,7 @@
+ #include "base/location.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/numerics/safe_conversions.h"
++#include "base/command_line.h"
+ #include "build/build_config.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/privacy_budget/identifiability_metric_builder.h"
+@@ -835,6 +836,25 @@
+   return canvas2d_bridge_->GetImageData(x, y, w, h);
+ }
+ 
++void ApplyCanvasNoise(ImageData* image_data, const std::string& seed_str) {
++  if (!image_data || seed_str.empty()) return;
++  
++  DOMUint8ClampedArray* data_array = image_data->data();
++  if (!data_array) return;
++  
++  unsigned char* pixels = data_array->Data();
++  size_t length = data_array->length();
++  
++  // Simple hash of the seed to generate a determinist offset
++  size_t hash = 0;
++  for (char c : seed_str) hash = hash * 31 + c;
++  
++  // Tweak the RGB values of a few specific pixels based on the seed
++  if (length > 4 && hash > 0) {
++    size_t target_pixel = (hash % (length / 4)) * 4;
++    pixels[target_pixel] = (pixels[target_pixel] + 1) % 256; // Alter Red channel slightly
++  }
++}
++
+ String HTMLCanvasElement::ToDataURLInternal(
+     const String& mime_type,
+     const double& quality,
+@@ -865,6 +885,12 @@
+     return String("data:,");
+   }
+ 
++  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch("canvas-noise-seed")) {
++    std::string seed = command_line->GetSwitchValueASCII("canvas-noise-seed");
++    ApplyCanvasNoise(image_data, seed);
++  }
++
+   return ImageDataBuffer(image_data->Size(), image_data->data()->Data())
+       .ToDataURL(mime_type, quality);
+ }
