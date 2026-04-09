@@ -4,5 +4,6 @@ import type { Profile } from './db';
 contextBridge.exposeInMainWorld('api', {
   getProfiles: () => ipcRenderer.invoke('get-profiles'),
   createProfile: (profile: Profile) => ipcRenderer.invoke('create-profile', profile),
-  launchProfile: (id: number) => ipcRenderer.invoke('launch-profile', id)
+  launchProfile: (id: number) => ipcRenderer.invoke('launch-profile', id),
+  runAgent: (id: number, task: string) => ipcRenderer.invoke('run-agent', id, task)
 });
